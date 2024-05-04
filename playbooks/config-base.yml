@@ -1,0 +1,86 @@
+---
+- hosts: localhost  
+  become: yes        
+  tasks:
+    - name: Update apt 
+      apt:
+        update_cache: yes
+
+    - name: Install basic packages
+      apt:
+        name: "{{ packages }}"
+        state: present
+      vars:
+        packages:
+          - vim          
+          - htop
+          - git
+          - python3
+          - zsh
+          - curl
+          - wget
+          - apt-transport-https
+          - bash-completion
+
+    - name: Config vscode
+      shell: |
+        wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
+        sudo install -D -o root -g root -m 644 packages.microsoft.gpg /etc/apt/keyrings/packages.microsoft.gpg
+        echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" |sudo tee /etc/apt/sources.list.d/vscode.list > /dev/null
+        rm -f packages.microsoft.gpg
+    
+    - name: Config helm
+      shell: |
+        curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+
+    - name: Config docker
+      shell: |
+        sudo install -m 0755 -d /etc/apt/keyrings
+        sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+        sudo chmod a+r /etc/apt/keyrings/docker.asc
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+        sudo groupadd docker
+        sudo usermod -aG docker $USER
+        sudo systemctl enable docker.service
+        sudo systemctl enable containerd.service
+
+    - name: Config kubectl
+      shell: |
+        sudo mkdir -p -m 755 /etc/apt/keyrings
+        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        sudo chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg # allow unprivileged APT programs to read this keyring
+        echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
+        sudo chmod 644 /etc/apt/sources.list.d/kubernetes.list
+    
+    - name: Update apt 
+      apt:
+        update_cache: yes
+
+    - name: Install apps
+      apt:
+        name: "{{ packages }}"
+        state: present
+      vars:
+        packages:
+          - code
+          - helm
+          - docker-ce 
+          - docker-ce-cli 
+          - containerd.io 
+          - docker-compose-plugin
+          - kubectl
+
+    - name: Add kubectl autocomplete setup to .bashrc
+      lineinfile:
+        path: ~/.bashrc
+        line: 'source <(kubectl completion bash)'
+        create: true
+        state: present
+    
+    - name: Set up kubectl autocomplete (current session)
+      shell: |
+        source ~/.bashrc
+      args:
+        executable: /bin/bash 
+   
